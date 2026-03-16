@@ -1,9 +1,11 @@
-name: OpenClaw NPM Release
+name: OpenClaw NPM Release (DISABLED FOR FORK)
+
+# Disabled for fork - use build-test.yml for publishing to @frankenclaw/openclaw
 
 on:
   push:
     tags:
-      - "v*"
+      - "DISABLE_THIS_TAG_NEVER_PUSHED"
   workflow_dispatch:
     inputs:
       tag:
