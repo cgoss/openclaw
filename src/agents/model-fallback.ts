@@ -19,6 +19,7 @@ import {
   isFailoverError,
   isTimeoutError,
 } from "./failover-error.js";
+import { collectProviderApiKeys } from "./live-auth-keys.js";
 import { logModelFallbackDecision } from "./model-fallback-observation.js";
 import type { FallbackAttempt, ModelCandidate } from "./model-fallback.types.js";
 import {
@@ -32,7 +33,6 @@ import {
 import type { FailoverReason } from "./pi-embedded-helpers.js";
 import { isLikelyContextOverflowError } from "./pi-embedded-helpers.js";
 import { classifyFailoverReason } from "./pi-embedded-helpers/errors.js";
-import { collectProviderApiKeys } from "./live-auth-keys.js";
 
 const log = createSubsystemLogger("model-fallback");
 
@@ -667,7 +667,11 @@ export async function runWithModelFallback<T>(params: {
     let lastKeyError: unknown;
 
     for (const apiKey of keysToTry) {
-      const runWithApiKey = async (p: string, m: string, opts?: ModelFallbackRunOptions): Promise<T> => {
+      const runWithApiKey = async (
+        p: string,
+        m: string,
+        opts?: ModelFallbackRunOptions,
+      ): Promise<T> => {
         const finalOpts = apiKey ? { ...opts, apiKey } : opts;
         return params.run(p, m, finalOpts);
       };
@@ -706,7 +710,8 @@ export async function runWithModelFallback<T>(params: {
       }
 
       // Check if rate limit - try next key
-      const errMessage = attemptRun.error instanceof Error ? attemptRun.error.message : String(attemptRun.error);
+      const errMessage =
+        attemptRun.error instanceof Error ? attemptRun.error.message : String(attemptRun.error);
       const reason = classifyFailoverReason(errMessage);
       const isRateLimit = reason === "rate_limit" || reason === "overloaded";
 

@@ -26,6 +26,7 @@ Execution:
 ```
 
 This respects:
+
 - The agent's configured fallback chain
 - Key rotation within each provider
 - Same model on different providers (via fallback config)
@@ -56,6 +57,7 @@ Uses existing environment variables - no new config needed:
 ## Backward Compatibility
 
 ✅ **Fully backward compatible**
+
 - If only one key is configured, behavior unchanged
 - If no keys configured, fails with auth error as before
 - Existing fallback chain behavior preserved
