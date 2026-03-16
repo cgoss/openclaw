@@ -91,6 +91,6 @@ jobs:
         run: pnpm build
 
       - name: Publish to npm
-        run: npm publish @frankenclaw/openclaw --access public
+        run: npm publish @moltedcrew/openclaw --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
