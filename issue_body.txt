@@ -1,0 +1,37 @@
+## Summary
+
+Add API key rotation to the model fallback system so that when one key hits a rate limit, it tries the next key for the same provider before moving to the next model in the fallback chain.
+
+## Problem
+
+Currently, the model fallback system works at the provider/model level but only uses ONE key per provider. When key1 hits a rate limit, it immediately moves to the next model in the fallback chain, even if additional keys are available for the same provider.
+
+## Desired Behavior
+
+```
+Agent Config:
+  primary: "openai/gpt-5"
+  fallbacks:
+    - "opencode/gpt-5"
+    - "anthropic/claude-3.5"
+
+Execution:
+1. openai/gpt-5: key1 -> rate limit -> key2 -> rate limit -> key3 -> exhausted
+2. opencode/gpt-5: key1 -> rate limit -> key2 -> exhausted
+3. anthropic/claude-3.5: key1 -> success!
+```
+
+## Configuration
+
+Uses existing env vars:
+- <PROVIDER>_API_KEY
+- <PROVIDER>_API_KEYS
+- <PROVIDER>_API_KEY_1, etc.
+- OPENCLAW_LIVE_<PROVIDER>_KEY
+
+## Files to Modify
+- src/agents/model-fallback.ts
+- Tests
+
+## Backward Compatibility
+Fully backward compatible

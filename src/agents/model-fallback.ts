@@ -31,11 +31,14 @@ import {
 } from "./model-selection.js";
 import type { FailoverReason } from "./pi-embedded-helpers.js";
 import { isLikelyContextOverflowError } from "./pi-embedded-helpers.js";
+import { classifyFailoverReason } from "./pi-embedded-helpers/errors.js";
+import { collectProviderApiKeys } from "./live-auth-keys.js";
 
 const log = createSubsystemLogger("model-fallback");
 
 export type ModelFallbackRunOptions = {
   allowTransientCooldownProbe?: boolean;
+  apiKey?: string;
 };
 
 type ModelFallbackRunFn<T> = (
@@ -658,38 +661,62 @@ export async function runWithModelFallback<T>(params: {
       }
     }
 
-    const attemptRun = await runFallbackAttempt({
-      run: params.run,
-      ...candidate,
-      attempts,
-      options: runOptions,
-    });
-    if ("success" in attemptRun) {
-      if (i > 0 || attempts.length > 0 || attemptedDuringCooldown) {
-        logModelFallbackDecision({
-          decision: "candidate_succeeded",
-          runId: params.runId,
-          requestedProvider: params.provider,
-          requestedModel: params.model,
-          candidate,
-          attempt: i + 1,
-          total: candidates.length,
-          previousAttempts: attempts,
-          isPrimary,
-          requestedModelMatched: requestedModel,
-          fallbackConfigured: hasFallbackCandidates,
-        });
+    // Key rotation: get all API keys for this provider
+    const apiKeys = collectProviderApiKeys(candidate.provider);
+    const keysToTry = apiKeys.length > 0 ? apiKeys : [undefined];
+    let lastKeyError: unknown;
+
+    for (const apiKey of keysToTry) {
+      const runWithApiKey = async (p: string, m: string, opts?: ModelFallbackRunOptions): Promise<T> => {
+        const finalOpts = apiKey ? { ...opts, apiKey } : opts;
+        return params.run(p, m, finalOpts);
+      };
+
+      const attemptRun = await runFallbackAttempt({
+        run: runWithApiKey,
+        ...candidate,
+        attempts,
+        options: runOptions,
+      });
+
+      if ("success" in attemptRun) {
+        if (i > 0 || attempts.length > 0 || attemptedDuringCooldown) {
+          logModelFallbackDecision({
+            decision: "candidate_succeeded",
+            runId: params.runId,
+            requestedProvider: params.provider,
+            requestedModel: params.model,
+            candidate,
+            attempt: i + 1,
+            total: candidates.length,
+            previousAttempts: attempts,
+            isPrimary,
+            requestedModelMatched: requestedModel,
+            fallbackConfigured: hasFallbackCandidates,
+          });
+        }
+        const notFoundAttempt =
+          i > 0 ? attempts.find((a) => a.reason === "model_not_found") : undefined;
+        if (notFoundAttempt) {
+          log.warn(
+            `Model "${sanitizeForLog(notFoundAttempt.provider)}/${sanitizeForLog(notFoundAttempt.model)}" not found. Fell back to "${sanitizeForLog(candidate.provider)}/${sanitizeForLog(candidate.model)}".`,
+          );
+        }
+        return attemptRun.success;
       }
-      const notFoundAttempt =
-        i > 0 ? attempts.find((a) => a.reason === "model_not_found") : undefined;
-      if (notFoundAttempt) {
-        log.warn(
-          `Model "${sanitizeForLog(notFoundAttempt.provider)}/${sanitizeForLog(notFoundAttempt.model)}" not found. Fell back to "${sanitizeForLog(candidate.provider)}/${sanitizeForLog(candidate.model)}".`,
-        );
+
+      // Check if rate limit - try next key
+      const errMessage = attemptRun.error instanceof Error ? attemptRun.error.message : String(attemptRun.error);
+      const reason = classifyFailoverReason(errMessage);
+      const isRateLimit = reason === "rate_limit" || reason === "overloaded";
+
+      if (!isRateLimit || !apiKey || apiKeys.indexOf(apiKey) === apiKeys.length - 1) {
+        lastKeyError = attemptRun.error;
+        break;
       }
-      return attemptRun.success;
     }
-    const err = attemptRun.error;
+
+    const err = lastKeyError;
     {
       if (transientProbeProviderForAttempt) {
         const probeFailureReason = describeFailoverError(err).reason;
