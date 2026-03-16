@@ -1,5 +1,5 @@
 {
-  "name": "@colingoss/openclaw",
+  "name": "@moltedcrew/openclaw",
   "version": "2026.3.14",
   "description": "Multi-channel AI gateway with extensible messaging integrations",
   "keywords": [],
@@ -8,7 +8,7 @@
     "url": "https://github.com/cgoss/openclaw/issues"
   },
   "license": "MIT",
-  "author": "",
+  "author": "Colin Goss",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cgoss/openclaw.git"
