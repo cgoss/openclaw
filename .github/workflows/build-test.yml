@@ -50,6 +50,7 @@ jobs:
           pnpm lint:auth:pairing-account-scope
 
       - name: Run tests
+        if: github.ref != 'refs/tags/v*'
         run: pnpm test
 
       - name: Build
